@@ -19,7 +19,7 @@
 
   <properties>
     <java.version>17</java.version>
-    <sonar.projectKey>inventory-backend</sonar.projectKey>
+    <sonar.projectKey>ToYoNiX_gitops-terraform-kubernates</sonar.projectKey>
     <sonar.projectName>Inventory Backend</sonar.projectName>
     <sonar.coverage.jacoco.xmlReportPaths>
       ${project.build.directory}/site/jacoco/jacoco.xml
