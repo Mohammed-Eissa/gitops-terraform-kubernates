@@ -1,0 +1,136 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: '{{ include "generic-observability.fullname" . }}'
+  namespace: '{{ .Values.monitoringNamespace }}'
+  labels:
+    helm.sh/chart: '{{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}'
+    app.kubernetes.io/name: '{{ include "generic-observability.name" . }}'
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+spec:
+  groups:
+
+    # ── Recording rules ──────────────────────────────────────────────────────
+    - name: generic-observability.recording
+      rules:
+
+        # CPU utilisation per node (0–100 %)
+        - record: instance:node_cpu_utilisation:rate5m
+          expr: |
+            (1 - avg without(cpu, mode) (
+              rate(node_cpu_seconds_total{job="{{ .Values.nodeExporter.jobName }}", mode="idle"}[5m])
+            )) * 100
+
+        # Memory utilisation per node (0–100 %)
+        - record: instance:node_memory_utilisation:ratio
+          expr: |
+            (1 -
+              node_memory_MemAvailable_bytes{job="{{ .Values.nodeExporter.jobName }}"}
+            / node_memory_MemTotal_bytes{job="{{ .Values.nodeExporter.jobName }}"}
+            ) * 100
+
+        # Disk utilisation per mountpoint (0–100 %)
+        - record: instance:node_disk_utilisation:ratio
+          expr: |
+            (1 -
+              node_filesystem_avail_bytes{job="{{ .Values.nodeExporter.jobName }}", fstype!="", mountpoint!=""}
+            / node_filesystem_size_bytes{job="{{ .Values.nodeExporter.jobName }}", fstype!="", mountpoint!=""}
+            ) * 100
+
+        # HTTP requests/second — total across all ingresses
+        - record: namespace:nginx_ingress_requests:rate1m
+          expr: |
+            sum by (namespace, ingress, method, status) (
+              rate(nginx_ingress_controller_requests[1m])
+            )
+
+        # HTTP requests/minute — total (convenience rule for dashboards)
+        - record: namespace:nginx_ingress_requests_per_minute:rate1m
+          expr: |
+            sum by (namespace, ingress, method, status) (
+              rate(nginx_ingress_controller_requests[1m])
+            ) * 60
+
+        # HTTP 5xx error rate (%)
+        - record: namespace:nginx_ingress_5xx_ratio:rate1m
+          expr: |
+            100 * sum by (namespace, ingress) (
+              rate(nginx_ingress_controller_requests{status=~"5.."}[1m])
+            )
+            / sum by (namespace, ingress) (
+              rate(nginx_ingress_controller_requests[1m])
+            )
+
+    # ── Alerting rules ───────────────────────────────────────────────────────
+    - name: generic-observability.alerts
+      rules:
+
+        - alert: HighCPUUsage
+          expr: instance:node_cpu_utilisation:rate5m > {{ .Values.prometheusRule.alerts.cpuUsagePercent }}
+          for: 5m
+          labels:
+            severity: warning
+            project: '{{ .Values.project }}'
+          annotations:
+            summary: 'High CPU usage on {{ "{{" }} $labels.instance {{ "}}" }}'
+            description: >-
+              CPU utilisation is {{ "{{" }} printf "%.1f" $value {{ "}}" }}%
+              on {{ "{{" }} $labels.instance {{ "}}" }}, threshold is
+              {{ .Values.prometheusRule.alerts.cpuUsagePercent }}%.
+
+        - alert: HighMemoryUsage
+          expr: instance:node_memory_utilisation:ratio > {{ .Values.prometheusRule.alerts.memUsagePercent }}
+          for: 5m
+          labels:
+            severity: warning
+            project: '{{ .Values.project }}'
+          annotations:
+            summary: 'High memory usage on {{ "{{" }} $labels.instance {{ "}}" }}'
+            description: >-
+              Memory utilisation is {{ "{{" }} printf "%.1f" $value {{ "}}" }}%
+              on {{ "{{" }} $labels.instance {{ "}}" }}, threshold is
+              {{ .Values.prometheusRule.alerts.memUsagePercent }}%.
+
+        - alert: HighDiskUsage
+          expr: instance:node_disk_utilisation:ratio > {{ .Values.prometheusRule.alerts.diskUsagePercent }}
+          for: 10m
+          labels:
+            severity: warning
+            project: '{{ .Values.project }}'
+          annotations:
+            summary: 'High disk usage on {{ "{{" }} $labels.instance {{ "}}" }} mount {{ "{{" }} $labels.mountpoint {{ "}}" }}'
+            description: >-
+              Disk utilisation is {{ "{{" }} printf "%.1f" $value {{ "}}" }}%
+              on {{ "{{" }} $labels.instance {{ "}}" }}:{{ "{{" }} $labels.mountpoint {{ "}}" }},
+              threshold is {{ .Values.prometheusRule.alerts.diskUsagePercent }}%.
+
+        - alert: High5xxErrorRate
+          expr: namespace:nginx_ingress_5xx_ratio:rate1m > {{ .Values.prometheusRule.alerts.http5xxErrorPercent }}
+          for: 2m
+          labels:
+            severity: critical
+            project: '{{ .Values.project }}'
+          annotations:
+            summary: 'High HTTP 5xx error rate on ingress {{ "{{" }} $labels.ingress {{ "}}" }}'
+            description: >-
+              5xx error rate is {{ "{{" }} printf "%.1f" $value {{ "}}" }}%
+              on ingress {{ "{{" }} $labels.ingress {{ "}}" }}
+              in namespace {{ "{{" }} $labels.namespace {{ "}}" }},
+              threshold is {{ .Values.prometheusRule.alerts.http5xxErrorPercent }}%.
+
+        - alert: HighHTTPRequestRate
+          expr: |
+            sum by (namespace, ingress) (
+              rate(nginx_ingress_controller_requests[1m])
+            ) > {{ .Values.prometheusRule.alerts.httpRpsThreshold }}
+          for: 5m
+          labels:
+            severity: warning
+            project: '{{ .Values.project }}'
+          annotations:
+            summary: 'High request rate on ingress {{ "{{" }} $labels.ingress {{ "}}" }}'
+            description: >-
+              Request rate is {{ "{{" }} printf "%.0f" $value {{ "}}" }} req/s
+              on ingress {{ "{{" }} $labels.ingress {{ "}}" }}, threshold is
+              {{ .Values.prometheusRule.alerts.httpRpsThreshold }} req/s.

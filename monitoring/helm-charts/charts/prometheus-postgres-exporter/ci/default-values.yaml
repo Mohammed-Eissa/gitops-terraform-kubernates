@@ -1,0 +1,4 @@
+# Default chart values
+config:
+  datasource:
+    password: testpassword

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: '{{ include "generic-observability.fullname" . }}-overview-dashboard'
+  namespace: '{{ .Values.monitoringNamespace }}'
+  labels:
+    helm.sh/chart: '{{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}'
+    app.kubernetes.io/name: '{{ include "generic-observability.name" . }}'
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    # Label watched by the Grafana sidecar for auto-import
+    '{{ .Values.grafana.dashboardLabel }}': '{{ .Values.grafana.dashboardLabelValue }}'
+  annotations:
+    # Project tag — helpful for multi-project clusters.
+    generic-observability/project: '{{ .Values.project }}'
+data:
+  generic-overview.json: |-
+    {{- .Files.Get "files/dashboards/generic-overview.json" | nindent 4 }}

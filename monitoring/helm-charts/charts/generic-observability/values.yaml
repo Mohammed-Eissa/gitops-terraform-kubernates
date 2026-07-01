@@ -1,0 +1,87 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# generic-observability values.yaml
+# Adjust these values per project; all keys are fully overridable via --set.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Human-readable project identifier shown as a Grafana dashboard tag.
+project: my-project
+
+# Namespace where kube-prometheus-stack (Prometheus + Grafana) is installed.
+monitoringNamespace: monitoring
+
+# ── Grafana sidecar ────────────────────────────────────────────────────────────
+# Must match the sidecar.dashboards.label configured in kube-prometheus-stack.
+grafana:
+  dashboardLabel: grafana_dashboard
+  dashboardLabelValue: "1"
+  # Leave empty to use monitoringNamespace.
+  dashboardsConfigMapNamespace: ""
+
+# ── Node Exporter (CPU / RAM / Disk / Network) ────────────────────────────────
+# Job name that Prometheus uses for node-exporter scrape targets.
+# Default matches kube-prometheus-stack's node-exporter ServiceMonitor.
+nodeExporter:
+  jobName: node-exporter
+
+# ── NGINX Ingress Controller metrics ──────────────────────────────────────────
+# The chart creates a ServiceMonitor targeting the ingress-nginx controller pods.
+# Produces per-method and per-status-code request metrics.
+nginxIngress:
+  enabled: true
+
+  # Namespace where ingress-nginx is deployed.
+  namespace: ingress-nginx
+
+  # Label selector for the ingress-nginx controller pods.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+
+  # Port name exposed by the controller pods for Prometheus scraping.
+  portName: metrics
+
+  # Scrape path.
+  path: /metrics
+
+  # Scrape interval (leave empty to use Prometheus global default).
+  scrapeInterval: ""
+
+  # Additional label selector for pods (if needed per environment).
+  # Example: environment: production
+  podLabels: {}
+
+# ── Application-level ServiceMonitor (optional) ───────────────────────────────
+# Enable if your application also exposes its own /metrics endpoint
+# (e.g. Spring Boot Actuator, custom Prometheus client).
+appMetrics:
+  enabled: false
+
+  namespace: default
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: my-app
+
+  portName: metrics
+  path: /metrics
+  scrapeInterval: ""
+
+# ── PrometheusRule (recording rules + alerts) ─────────────────────────────────
+prometheusRule:
+  enabled: true
+
+  # Prometheus instance label used to select this rule.
+  # Must match kube-prometheus-stack's ruleSelector (default: release label).
+  additionalLabels: {}
+  #   release: kube-prometheus-stack
+
+  # Alert thresholds (percentage, 0–100).
+  alerts:
+    cpuUsagePercent: 85
+    memUsagePercent: 90
+    diskUsagePercent: 85
+    # Requests/second above which a high-traffic alert fires (per ingress).
+    httpRpsThreshold: 1000
+    # HTTP 5xx error rate (%) above which an alert fires.
+    http5xxErrorPercent: 5
