@@ -37,7 +37,7 @@ jobs:
         run: pytest tests/e2e/ -v
 
       - name: OWASP ZAP full scan
-        uses: zaproxy/action-full-scan@v0.10.0
+        uses: zaproxy/action-full-scan@v0.13.0
         with:
           target: 'http://localhost'
           allow_issue_writing: false
