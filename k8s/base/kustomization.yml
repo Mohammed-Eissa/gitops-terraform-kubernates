@@ -11,4 +11,3 @@ resources:
   - backend/hpa.yml
   - frontend/deployment.yml
   - frontend/service.yml
-  - ingress.yml

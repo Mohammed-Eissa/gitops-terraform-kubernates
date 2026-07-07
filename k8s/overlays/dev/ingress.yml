@@ -2,14 +2,19 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: inventory-ingress
-  namespace: inventory
+  namespace: dev
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - dev-devops-depi.duckdns.org
+      secretName: devops-depi-tls
   rules:
-    - host: devops-depi.duckdns.org
+    - host: dev-devops-depi.duckdns.org
       http:
         paths:
           - path: /

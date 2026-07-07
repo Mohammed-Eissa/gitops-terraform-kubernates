@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-devops-depi
+  namespace: cert-manager
+spec:
+  secretName: devops-depi-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "prod-devops-depi.duckdns.org"
+    - "dev-devops-depi.duckdns.org"

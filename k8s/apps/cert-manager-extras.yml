@@ -1,19 +1,19 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: inventory-app
-  namespace: {{ argocd_namespace }}
+  name: cert-manager-extras
+  namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: {{ argocd_repo_url }}
-    targetRevision: {{ argocd_repo_branch }}
-    path: {{ argocd_app_path }}/apps
+    repoURL: https://github.com/ToYoNiX/gitops-terraform-kubernates.git
+    targetRevision: main
+    path: k8s/cert-manager
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: cert-manager
   syncPolicy:
     automated:
       prune: true

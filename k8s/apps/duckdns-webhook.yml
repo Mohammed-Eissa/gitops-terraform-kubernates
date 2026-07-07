@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: duckdns-webhook
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://ebrianne.github.io/cert-manager-webhook-duckdns
+    chart: cert-manager-webhook-duckdns
+    targetRevision: v1.2.1
+    helm:
+      values: |
+        groupName: acme.duckdns.org
+        certManager:
+          namespace: cert-manager
+          serviceAccountName: cert-manager
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
