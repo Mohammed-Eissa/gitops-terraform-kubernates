@@ -1,0 +1,13 @@
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 5m
+
+    route:
+      receiver: discord
+
+    receivers:
+      - name: discord
+        webhook_configs:
+          - url: "https://discord.com/api/webhooks/1524070916978511974/y0KliFeGmz346TrqC5XDCSL1gwjbF8c2tdMy3SrZEED4qTPfghAxAcrt-zpLr-qfLKib"
+            send_resolved: true
