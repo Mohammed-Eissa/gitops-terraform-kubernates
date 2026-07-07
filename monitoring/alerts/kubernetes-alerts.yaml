@@ -1,0 +1,68 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+
+metadata:
+  name: kubernetes-alerts
+  namespace: monitoring
+
+spec:
+  groups:
+    - name: kubernetes.rules
+
+      rules:
+
+        - alert: HighCPUUsage
+
+          expr: (100 - (avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+
+          for: 2m
+
+          labels:
+            severity: warning
+
+          annotations:
+            summary: "High CPU Usage"
+
+            description: "CPU usage is above 80% for more than 2 minutes."
+
+        - alert: HighMemoryUsage
+
+          expr: (100 - ((node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)) > 80
+
+          for: 2m
+
+          labels:
+            severity: warning
+
+          annotations:
+            summary: "High Memory Usage"
+
+            description: "Memory usage is above 80%."
+
+        - alert: PodRestarting
+
+          expr: increase(kube_pod_container_status_restarts_total[10m]) > 3
+
+          for: 1m
+
+          labels:
+            severity: warning
+
+          annotations:
+            summary: "Pod Restarting"
+
+            description: "A pod restarted more than three times."
+
+        - alert: NodeDown
+
+          expr: up{job="node-exporter"} == 0
+
+          for: 2m
+
+          labels:
+            severity: critical
+
+          annotations:
+            summary: "Node Down"
+
+            description: "Node Exporter is unreachable."
