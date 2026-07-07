@@ -144,3 +144,21 @@ When you import a repo into SonarCloud it auto-generates the project key as `{or
 - Frontend: `sonar.projectKey` in `frontend/sonar-project.properties`
 
 Find the correct key from the project URL on SonarCloud: `sonarcloud.io/project/overview?id=<this-is-the-key>`.
+
+**Each component needs its own unique project key:**
+
+SonarCloud uses `projectKey` as the unique identifier for a project — not the project name. If two analyses share the same key, the second one completely **overwrites** the first. In a monorepo with multiple components (backend + frontend), this means whichever CI job runs last silently destroys the other's analysis.
+
+**Symptom:** "Inventory Backend" disappears from the dashboard and is replaced by "Inventory Frontend" after the frontend workflow runs (or vice versa).
+
+**Fix:** Append a suffix to make each key unique:
+
+```properties
+# backend/pom.xml
+sonar.projectKey=ToYoNiX_gitops-terraform-kubernates_backend
+
+# frontend/sonar-project.properties
+sonar.projectKey=ToYoNiX_gitops-terraform-kubernates_frontend
+```
+
+Each key maps to a separate project in SonarCloud. After changing the keys, manually delete the old shared project from the SonarCloud dashboard (Administration → Delete Project) so it doesn't sit there as a ghost.
