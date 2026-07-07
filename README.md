@@ -6,7 +6,7 @@
 | --- | --- |
 | **Instructor** | Eng. Mohamed Atef |
 | **Group** | GIZ4_SWD1_S1 |
-| **Repo** | [github.com/Mohammed-Eissa/gitops-terraform-kubernates](https://github.com/Mohammed-Eissa/gitops-terraform-kubernates) |
+| **Repo** | [github.com/ToYoNiX/gitops-terraform-kubernates](https://github.com/ToYoNiX/gitops-terraform-kubernates) |
 
 ---
 
@@ -31,10 +31,10 @@ This project delivers a **fully automated DevOps pipeline** for an Inventory Man
 The application is a full-stack Inventory Manager built in-house:
 
 - **Frontend** — Angular 17 + Angular Material served via Nginx
-- **Backend** — Spring Boot 3 REST API (Java 17)
+- **Backend** — Spring Boot 3.2 REST API (Java 17) with JWT authentication
 - **Database** — PostgreSQL 16
 
-Everything lives in this monorepo: application source code, Terraform modules, Kubernetes manifests, and GitHub Actions workflows.
+Everything lives in this monorepo: application source code, Terraform modules, Kubernetes manifests, Ansible playbooks, and GitHub Actions workflows.
 
 ---
 
@@ -45,16 +45,16 @@ Developer Push
       │
       ▼
 GitHub Actions CI/CD
-  ├── SAST (SonarQube)
+  ├── SAST (SonarCloud)
   ├── Secrets Scan (Gitleaks)
   ├── Dependency Audit (OWASP, npm audit)
   ├── Docker Build & Push (Trivy image scan)
   └── Deploy to Kubernetes
             │
             ▼
-     AWS (Terraform-provisioned)
+     On-Premises (Terraform + QEMU/KVM)
      ┌─────────────────────────────────┐
-     │  Kubernetes Cluster (EKS)       │
+     │  k3s Cluster                    │
      │  ┌──────────┐  ┌─────────────┐ │
      │  │ Frontend │  │   Backend   │ │
      │  │ (Nginx)  │  │(Spring Boot)│ │
@@ -65,6 +65,7 @@ GitHub Actions CI/CD
      │               └──────────────┘ │
      │                                │
      │  Prometheus + Grafana          │
+     │  Cloudflare Tunnel (public URL)│
      └─────────────────────────────────┘
             │
             ▼
@@ -79,13 +80,13 @@ GitHub Actions CI/CD
 | --- | --- | --- |
 | Lint | ESLint, Checkstyle | Every push |
 | Unit Tests | JUnit, Karma | Every push |
-| SAST | SonarQube | Every push |
+| SAST | SonarCloud | Every push |
 | Secrets Detection | Gitleaks | Every push |
 | Dependency Audit | OWASP Dependency-Check, npm audit | Every push |
 | Container Build & Scan | Docker, Trivy | Every push |
-| Infrastructure Provision | Terraform | Merge to main |
-| Deploy | Kubernetes (EKS) | Merge to main |
-| DAST | Selenium, OWASP ZAP | Post-deploy |
+| Infrastructure Provision | Terraform + Ansible | Merge to main |
+| Deploy | Kubernetes (k3s) | Merge to main |
+| DAST | Selenium, OWASP ZAP | Post-deploy / weekly |
 | Monitoring | Prometheus, Grafana | Always-on |
 
 ---
@@ -103,11 +104,12 @@ GitHub Actions CI/CD
 │   ├── angular.json
 │   ├── nginx.conf
 │   └── Dockerfile
-├── terraform/            # AWS infrastructure (EKS, VPC, RDS)
-├── kubernetes/           # K8s manifests (Deployments, Services, Secrets)
+├── terraform/            # QEMU/KVM VM provisioning (libvirt provider)
+├── ansible/              # k3s install, app deploy, monitoring, Cloudflare tunnel
+├── kubernetes/           # K8s manifests (Deployments, Services, Secrets, HPA)
+├── monitoring/           # Prometheus + Grafana helm values and manifests
 ├── .github/workflows/    # CI/CD pipeline definitions
-├── docker-compose.yml    # Local development stack
-└── MEMORY.md             # Project context for contributors and AI agents
+└── docker-compose.yml    # Local development stack
 ```
 
 ---
@@ -117,7 +119,7 @@ GitHub Actions CI/CD
 Prerequisites: Docker and Docker Compose installed.
 
 ```bash
-git clone https://github.com/Mohammed-Eissa/gitops-terraform-kubernates.git
+git clone https://github.com/ToYoNiX/gitops-terraform-kubernates.git
 cd gitops-terraform-kubernates
 docker compose up --build
 ```
@@ -128,6 +130,8 @@ docker compose up --build
 | Backend API | <http://localhost:8080> |
 | Swagger UI | <http://localhost:8080/swagger-ui.html> |
 
+Default login: `admin` / `admin`
+
 ---
 
 ## Technology Stack
@@ -135,13 +139,14 @@ docker compose up --build
 | Category | Technology |
 | --- | --- |
 | Frontend | Angular 17, Angular Material, TypeScript |
-| Backend | Spring Boot 3.2, Spring Data JPA, Java 17 |
+| Backend | Spring Boot 3.2, Spring Security, JWT, Spring Data JPA, Java 17 |
 | Database | PostgreSQL 16 |
 | Containerization | Docker |
-| Orchestration | Kubernetes (AWS EKS) |
-| Infrastructure | Terraform |
+| Orchestration | Kubernetes (k3s, on-premises) |
+| Infrastructure | Terraform (libvirt provider), Ansible |
 | CI/CD | GitHub Actions |
-| SAST | SonarQube |
+| SAST | SonarCloud |
 | DAST | Selenium, OWASP ZAP |
 | Monitoring | Prometheus, Grafana |
 | Security | Trivy, Gitleaks, OWASP Dependency-Check |
+| Public URL | Cloudflare Tunnel |
