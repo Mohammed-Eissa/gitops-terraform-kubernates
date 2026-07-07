@@ -177,6 +177,18 @@ To rename it:
 2. In the top navigation click **Branches** (it is at the same level as Administration — Branches and Pull Requests are separate entries, not nested under Administration)
 3. Next to `master` → three dots → **Rename** → type `main` → Save
 
+---
+
+## Grafana Dashboard Import — DS_PROMETHEUS Variable
+
+The JVM Micrometer dashboard (Grafana ID 4701) references datasources via a `${DS_PROMETHEUS}` placeholder. During import Grafana substitutes it with the selected datasource UID, but if the dashboard JSON does not include `DS_PROMETHEUS` as a template variable, the panels show "datasource not found" after import.
+
+**Fix already applied:** `monitoring/dashboards/jvm-micrometer.json` has `DS_PROMETHEUS` pre-added as a datasource variable defaulting to `prometheus`. Delete the dashboard in Grafana and re-import the file if you hit this.
+
+**Frontend has no JVM metrics** — the frontend is nginx; it does not appear in the JVM dashboard. A separate nginx-prometheus-exporter would be needed to monitor it.
+
+---
+
 Also pass `-Dsonar.branch.name` explicitly in CI so SonarCloud always knows which branch the analysis belongs to:
 
 ```yaml
