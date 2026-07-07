@@ -1,0 +1,27 @@
+---
+# Full cluster setup: k3s + ArgoCD
+# Run this once after `terraform apply` to get a fully operational cluster
+
+- name: Prepare all nodes
+  hosts: k3s
+  gather_facts: true
+  roles:
+    - common
+
+- name: Install k3s server (master)
+  hosts: master
+  gather_facts: true
+  roles:
+    - k3s-server
+
+- name: Join k3s agents
+  hosts: agents
+  gather_facts: true
+  roles:
+    - k3s-agent
+
+- name: Install ArgoCD and register app
+  hosts: master
+  gather_facts: false
+  roles:
+    - argocd

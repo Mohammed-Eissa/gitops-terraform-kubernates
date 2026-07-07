@@ -1,0 +1,64 @@
+---
+- name: Install Helm
+  shell: |
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  args:
+    creates: /usr/local/bin/helm
+
+- name: Add ArgoCD Helm repo
+  command: helm repo add argo https://argoproj.github.io/argo-helm
+  changed_when: false
+
+- name: Update Helm repos
+  command: helm repo update
+  changed_when: false
+
+- name: Create argocd namespace
+  command: k3s kubectl create namespace {{ argocd_namespace }}
+  register: ns_result
+  failed_when: ns_result.rc != 0 and 'already exists' not in ns_result.stderr
+
+- name: Install ArgoCD via Helm
+  command: >
+    helm upgrade --install argocd argo/argo-cd
+    --namespace {{ argocd_namespace }}
+    --version {{ argocd_version }}
+    --set server.service.type=NodePort
+    --set server.service.nodePortHttp=30080
+    --set server.service.nodePortHttps=30443
+    --set configs.params."server\.insecure"=true
+    --kubeconfig {{ k3s_kubeconfig_remote }}
+  register: helm_result
+  changed_when: "'has been upgraded' in helm_result.stdout or 'has been deployed' in helm_result.stdout"
+
+- name: Wait for ArgoCD server to be ready
+  command: >
+    k3s kubectl rollout status deployment/argocd-server
+    -n {{ argocd_namespace }}
+    --timeout=180s
+  register: rollout
+  retries: 3
+  delay: 10
+
+- name: Get ArgoCD initial admin password
+  command: >
+    k3s kubectl -n {{ argocd_namespace }} get secret argocd-initial-admin-secret
+    -o jsonpath='{.data.password}'
+  register: argocd_password_b64
+  changed_when: false
+
+- name: Print ArgoCD access info
+  debug:
+    msg:
+      - "ArgoCD UI: http://{{ k3s_master_ip }}:30080"
+      - "Username : admin"
+      - "Password : {{ argocd_password_b64.stdout | b64decode }}"
+
+- name: Write ArgoCD Application manifest
+  template:
+    src: argocd-app.yml.j2
+    dest: /tmp/argocd-app.yml
+    mode: "0644"
+
+- name: Deploy ArgoCD Application
+  command: k3s kubectl apply -f /tmp/argocd-app.yml
