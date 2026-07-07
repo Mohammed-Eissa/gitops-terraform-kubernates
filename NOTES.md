@@ -136,6 +136,10 @@ Go to repo → **Settings → Secrets and variables → Actions → New reposito
 
 The SonarQube steps in both CI workflows are conditional (`if: env.SONAR_TOKEN != ''`) so they are silently skipped when secrets are not configured — the rest of the pipeline still runs.
 
+**One token works for all projects in the same repo:**
+
+When SonarCloud onboards each new project it prompts you to generate a token. You do not need a separate token per project — a single token scoped to the organization has access to all projects within it. Reuse the same token for both `_backend` and `_frontend` projects; the `SONAR_TOKEN` secret in GitHub Actions only needs to be set once and both workflows will use it.
+
 **Project key must match SonarCloud exactly:**
 
 When you import a repo into SonarCloud it auto-generates the project key as `{org}_{repo}` — e.g. `ToYoNiX_gitops-terraform-kubernates`. This key must be set identically in both config files or the scan fails with "not authorized or project not found":
