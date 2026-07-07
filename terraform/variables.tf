@@ -9,7 +9,7 @@ variable "base_image_url" {
 }
 
 variable "vcpus" {
-  description = "vCPU threads per VM"
+  description = "vCPU cores per VM (1 socket, N cores, 1 thread)"
   default     = 2
 }
 
@@ -45,9 +45,9 @@ variable "vm_user" {
 
 locals {
   vms = {
-    master  = { ip = "10.17.3.10", role = "master" }
-    agent-1 = { ip = "10.17.3.11", role = "agent" }
-    agent-2 = { ip = "10.17.3.12", role = "agent" }
+    master  = { ip = "10.17.3.10", role = "master", mac = "52:54:00:00:03:0a" }
+    agent-1 = { ip = "10.17.3.11", role = "agent",  mac = "52:54:00:00:03:0b" }
+    agent-2 = { ip = "10.17.3.12", role = "agent",  mac = "52:54:00:00:03:0c" }
   }
 
   disk_size_bytes = var.disk_size_gb * 1073741824

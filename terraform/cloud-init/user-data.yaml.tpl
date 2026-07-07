@@ -8,8 +8,14 @@ users:
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     groups: [sudo]
+    lock_passwd: false
     ssh_authorized_keys:
       - ${ssh_public_key}
+
+chpasswd:
+  list: |
+    ${vm_user}:depi123
+  expire: false
 
 # Disable root SSH login
 disable_root: true

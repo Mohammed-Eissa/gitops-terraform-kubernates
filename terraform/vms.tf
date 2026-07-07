@@ -33,6 +33,7 @@ resource "libvirt_cloudinit_disk" "init" {
   network_config = templatefile("${path.module}/cloud-init/network-config.yaml.tpl", {
     ip      = each.value.ip
     gateway = var.gateway
+    mac     = each.value.mac
   })
 }
 
@@ -50,8 +51,26 @@ resource "libvirt_domain" "vm" {
     mode = "host-passthrough"
   }
 
+  xml {
+    xslt = <<-XSLT
+      <?xml version="1.0" ?>
+      <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+        <xsl:output omit-xml-declaration="yes" indent="yes"/>
+        <xsl:template match="node()|@*">
+          <xsl:copy><xsl:apply-templates select="node()|@*"/></xsl:copy>
+        </xsl:template>
+        <xsl:template match="/domain/cpu">
+          <cpu mode="host-passthrough">
+            <topology sockets="1" cores="2" threads="1"/>
+          </cpu>
+        </xsl:template>
+      </xsl:stylesheet>
+    XSLT
+  }
+
   network_interface {
     network_id = libvirt_network.k3s.id
+    mac        = each.value.mac
   }
 
   disk {

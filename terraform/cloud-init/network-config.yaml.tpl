@@ -1,6 +1,8 @@
 version: 2
 ethernets:
-  enp1s0:
+  id0:
+    match:
+      macaddress: ${mac}
     dhcp4: false
     addresses:
       - ${ip}/24
