@@ -10,11 +10,9 @@
 
 ## Forks
 
-| Fork | Branch | Owner |
-| --- | --- | --- |
-| [ToYoNiX/gitops-terraform-kubernates](https://github.com/ToYoNiX/gitops-terraform-kubernates) | main | Assem Mohamed Saad |
-| [AdhamZahran158/gitops-terraform-kubernates-monitoring](https://github.com/AdhamZahran158/gitops-terraform-kubernates-monitoring/tree/monitoring) | monitoring | Adham Alaa Abdulraheem |
-| [amatter17/gitops-terraform-kubernates](https://github.com/amatter17/gitops-terraform-kubernates/tree/main) | main | Ahmed Mohamed Abdelaziz Matter |
+- [ToYoNiX/gitops-terraform-kubernates](https://github.com/ToYoNiX/gitops-terraform-kubernates)
+- [AdhamZahran158/gitops-terraform-kubernates-monitoring](https://github.com/AdhamZahran158/gitops-terraform-kubernates-monitoring/tree/monitoring)
+- [amatter17/gitops-terraform-kubernates](https://github.com/amatter17/gitops-terraform-kubernates/tree/main)
 
 ---
 
