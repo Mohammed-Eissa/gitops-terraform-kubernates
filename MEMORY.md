@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A **DevSecOps demonstration monorepo** that contains a full-stack Inventory Manager application alongside all its infrastructure, CI/CD pipelines, and security tooling. Everything lives here — app code, Terraform, Kubernetes manifests, and GitHub Actions workflows.
+A **DevSecOps demonstration monorepo** that contains a full-stack Inventory Manager application alongside all its infrastructure, CI/CD pipelines, and security tooling. Everything lives here — app code, Terraform, Kubernetes manifests, Ansible playbooks, and GitHub Actions workflows.
 
 The application is a realistic CRUD web app for managing warehouse/office inventory (products, categories, stock levels). It exists as the vehicle for demonstrating a complete enterprise DevSecOps pipeline — not as a product meant for production use.
 
@@ -12,8 +12,10 @@ The application is a realistic CRUD web app for managing warehouse/office invent
 .
 ├── backend/                  # Spring Boot REST API (Java 17, Maven)
 ├── frontend/                 # Angular 17 SPA (TypeScript, Angular Material)
-├── terraform/                # (planned) AWS infrastructure as code
-├── kubernetes/               # (planned) K8s manifests for all services
+├── terraform/                # On-prem VM provisioning (libvirt provider, QEMU/KVM)
+├── ansible/                  # k3s install, app deploy, monitoring, Cloudflare tunnel
+├── kubernetes/               # K8s manifests for all services
+├── monitoring/               # Prometheus + Grafana helm values and manifests
 ├── .github/workflows/        # CI/CD pipelines (backend-ci, frontend-ci, dast)
 ├── docker-compose.yml        # Local dev: spins up Postgres + backend + frontend
 ├── MEMORY.md                 # Project context for humans and agents
@@ -28,17 +30,19 @@ The application is a realistic CRUD web app for managing warehouse/office invent
 - Status is auto-computed: quantity ≥ 10 → IN_STOCK, 1–9 → LOW_STOCK, 0 → OUT_OF_STOCK
 - Dashboard shows live stats and flags items needing restocking
 - Products page has search, category filter, and status filter
+- Access is protected by JWT authentication — login required to use the app
 
 ## Tech stack
 
 | Layer | Technology |
 | --- | --- |
 | Frontend | Angular 17, Angular Material, TypeScript |
-| Backend | Spring Boot 3.2, Spring Data JPA, Bean Validation |
+| Backend | Spring Boot 3.2, Spring Security, JWT (jjwt 0.12), Spring Data JPA |
 | Database | PostgreSQL 16 (H2 for tests only) |
 | Container | Docker (multi-stage builds), Nginx (frontend) |
-| Orchestration | Kubernetes (planned) |
-| Infrastructure | Terraform on AWS (planned) |
+| Orchestration | Kubernetes (k3s, on-premises) |
+| Infrastructure | Terraform (libvirt provider), Ansible |
+| Public URL | Cloudflare Tunnel |
 
 ## Running locally
 
@@ -51,18 +55,21 @@ docker compose up --build
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
 - Postgres: localhost:5432 / db: inventory / user: postgres / pass: postgres
 
+Default login: **admin / admin**
+
 ## Backend API
 
-Base URL: `/api/products`
+Authentication: `POST /api/auth/login` returns a JWT. All product endpoints require `Authorization: Bearer <token>`.
 
-| Method | Path | Description |
-| --- | --- | --- |
-| GET | `/api/products` | List all (supports `?search=`, `?category=`, `?status=`) |
-| GET | `/api/products/{id}` | Get by ID |
-| POST | `/api/products` | Create product |
-| PUT | `/api/products/{id}` | Update product |
-| DELETE | `/api/products/{id}` | Delete product |
-| GET | `/api/products/categories` | List distinct categories |
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/api/auth/login` | Public | Returns JWT token |
+| GET | `/api/products` | Required | List all (supports `?search=`, `?category=`, `?status=`) |
+| GET | `/api/products/{id}` | Required | Get by ID |
+| POST | `/api/products` | Required | Create product |
+| PUT | `/api/products/{id}` | Required | Update product |
+| DELETE | `/api/products/{id}` | Required | Delete product |
+| GET | `/api/products/categories` | Required | List distinct categories |
 
 ## Environment variables (backend)
 
@@ -80,14 +87,9 @@ All credentials are injected via environment variables — map these to Kubernet
 
 ### Implemented workflows
 
-- **backend-ci.yml** — Gitleaks secrets scan → Maven build + JUnit + JaCoCo → SonarQube SAST → OWASP Dependency-Check → Trivy image scan
-- **frontend-ci.yml** — ESLint → npm audit → Karma unit tests + coverage → SonarQube SAST → Trivy image scan
+- **backend-ci.yml** — Gitleaks secrets scan → Maven build + JUnit + JaCoCo → SonarCloud SAST → OWASP Dependency-Check → Trivy image scan
+- **frontend-ci.yml** — ESLint → npm audit → Karma unit tests + coverage → SonarCloud SAST → Trivy image scan
 - **dast.yml** — Spins up full stack via docker compose → Selenium E2E smoke tests → OWASP ZAP full scan. Triggered manually or weekly (Monday 2am)
-
-### Planned workflows
-
-- **terraform.yml** — Terraform plan/apply for AWS infrastructure
-- **deploy.yml** — Update Kubernetes manifests and trigger ArgoCD/Flux sync
 
 ## GitHub Actions secrets
 
@@ -137,7 +139,7 @@ Every commit — whether from a human or an agent — must follow this format:
 | --- | --- |
 | `feat` | A new feature or capability |
 | `fix` | A bug fix |
-| `infra` | Terraform, Kubernetes, or Docker changes |
+| `infra` | Terraform, Kubernetes, Ansible, or Docker changes |
 | `ci` | GitHub Actions workflow changes |
 | `refactor` | Code restructure with no behaviour change |
 | `test` | Adding or updating tests |
@@ -153,6 +155,7 @@ Every commit — whether from a human or an agent — must follow this format:
 | `frontend` | `frontend/` |
 | `k8s` | `kubernetes/` |
 | `terraform` | `terraform/` |
+| `ansible` | `ansible/` |
 | `ci` | `.github/workflows/` |
 | `root` | Repo-level files (MEMORY.md, docker-compose.yml, .gitignore) |
 
@@ -166,10 +169,10 @@ Every commit — whether from a human or an agent — must follow this format:
 ### Examples
 
 ```text
-feat(backend): add product search by name endpoint
+feat(backend): add jwt authentication
 
-Search is case-insensitive and delegates to a JPA derived query
-to keep the controller thin.
+Protects all product endpoints behind Bearer token auth.
+Admin user seeded with BCrypt on startup.
 ```
 
 ```text
@@ -184,14 +187,10 @@ hardcoded credentials in the deployment manifest.
 ```
 
 ```text
-ci: add sonarqube sast step to backend workflow
+ci: add sonarcloud sast step to backend workflow
 
 Runs after tests so JaCoCo coverage is available for the scan.
 Fails the build if quality gate is not passed.
-```
-
-```text
-security(backend): upgrade spring-boot to 3.2.5 — CVE-2024-XXXX
 ```
 
 ---
@@ -199,9 +198,14 @@ security(backend): upgrade spring-boot to 3.2.5 — CVE-2024-XXXX
 ## Key design decisions
 
 - **Monorepo**: all code, infra, and pipelines in one place for simplicity of demonstration
+- **On-prem over cloud**: QEMU/KVM VMs provisioned by Terraform (libvirt provider) + Ansible instead of AWS EKS — avoids cloud costs, demonstrates on-prem DevSecOps
+- **Cloud images + cloud-init**: Ubuntu cloud qcow2 images with cloud-init eliminate manual OS installation; VM is SSH-ready in ~60s after `terraform apply`
+- **k3s over full Kubernetes**: single-binary lightweight Kubernetes appropriate for on-prem; includes Traefik ingress by default
+- **Cloudflare Tunnel**: provides a free public HTTPS URL without port forwarding; deployed as a Kubernetes Deployment inside the cluster
+- **JWT over session auth**: stateless, suitable for a Kubernetes environment where multiple pod replicas share no session state
 - **PostgreSQL over H2**: enterprise-standard SQL database; H2 is used only in tests so CI needs no external DB
 - **Angular Material**: professional UI out of the box, minimal custom CSS required
 - **Env-var-driven config**: no secrets hardcoded anywhere; ready for Kubernetes Secrets injection
 - **Status auto-computation**: the service layer derives stock status from quantity — no manual status field exposed to the frontend form
 - **nginx:alpine-slim over nginx:alpine**: frontend final stage uses `nginx:alpine-slim` (21.8MB vs 93.9MB) — strips bash, apk, and unused modules while keeping static serving, `try_files`, and `proxy_pass`
-- **jlink custom JRE for backend**: 3-stage build uses `jdeps` + `jlink` to assemble a minimal JRE with only the modules Spring Boot actually imports (204MB vs 355MB). GraalVM native-image was tried and reverted — produced a larger image (244MB) with 15+ min build time for this stack
+- **jlink custom JRE for backend**: 3-stage build uses `jdeps` + `jlink` to assemble a minimal JRE with only the modules Spring Boot actually imports (204MB vs 355MB)

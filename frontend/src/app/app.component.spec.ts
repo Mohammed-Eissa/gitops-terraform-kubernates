@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { provideHttpClient } from '@angular/common/http';
 import { AppComponent } from './app.component';
 
 describe('AppComponent', () => {
@@ -10,6 +11,7 @@ describe('AppComponent', () => {
       providers: [
         provideRouter([]),
         provideAnimationsAsync(),
+        provideHttpClient(),
       ],
     }).compileComponents();
   });

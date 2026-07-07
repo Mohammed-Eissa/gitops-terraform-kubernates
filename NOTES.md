@@ -136,6 +136,10 @@ Go to repo → **Settings → Secrets and variables → Actions → New reposito
 
 The SonarQube steps in both CI workflows are conditional (`if: env.SONAR_TOKEN != ''`) so they are silently skipped when secrets are not configured — the rest of the pipeline still runs.
 
+**One token works for all projects in the same repo:**
+
+When SonarCloud onboards each new project it prompts you to generate a token. You do not need a separate token per project — a single token scoped to the organization has access to all projects within it. Reuse the same token for both `_backend` and `_frontend` projects; the `SONAR_TOKEN` secret in GitHub Actions only needs to be set once and both workflows will use it.
+
 **Project key must match SonarCloud exactly:**
 
 When you import a repo into SonarCloud it auto-generates the project key as `{org}_{repo}` — e.g. `ToYoNiX_gitops-terraform-kubernates`. This key must be set identically in both config files or the scan fails with "not authorized or project not found":
@@ -144,3 +148,55 @@ When you import a repo into SonarCloud it auto-generates the project key as `{or
 - Frontend: `sonar.projectKey` in `frontend/sonar-project.properties`
 
 Find the correct key from the project URL on SonarCloud: `sonarcloud.io/project/overview?id=<this-is-the-key>`.
+
+**Each component needs its own unique project key:**
+
+SonarCloud uses `projectKey` as the unique identifier for a project — not the project name. If two analyses share the same key, the second one completely **overwrites** the first. In a monorepo with multiple components (backend + frontend), this means whichever CI job runs last silently destroys the other's analysis.
+
+**Symptom:** "Inventory Backend" disappears from the dashboard and is replaced by "Inventory Frontend" after the frontend workflow runs (or vice versa).
+
+**Fix:** Append a suffix to make each key unique:
+
+```properties
+# backend/pom.xml
+sonar.projectKey=ToYoNiX_gitops-terraform-kubernates_backend
+
+# frontend/sonar-project.properties
+sonar.projectKey=ToYoNiX_gitops-terraform-kubernates_frontend
+```
+
+Each key maps to a separate project in SonarCloud. After changing the keys, manually delete the old shared project from the SonarCloud dashboard (Administration → Delete Project) so it doesn't sit there as a ghost.
+
+**SonarCloud defaults the main branch to `master` — rename it to `main`:**
+
+When SonarCloud auto-creates a new project from the first CI analysis, it sets `master` as the main branch. If your repo uses `main`, the dashboard shows "master branch has not been analyzed yet" even though analyses are coming in fine — they're just landing on `main` which SonarCloud treats as a feature branch.
+
+To rename it:
+
+1. Open the project in SonarCloud
+2. In the top navigation click **Branches** (it is at the same level as Administration — Branches and Pull Requests are separate entries, not nested under Administration)
+3. Next to `master` → three dots → **Rename** → type `main` → Save
+
+---
+
+## Grafana Dashboard Import — DS_PROMETHEUS Variable
+
+The JVM Micrometer dashboard (Grafana ID 4701) references datasources via a `${DS_PROMETHEUS}` placeholder. During import Grafana substitutes it with the selected datasource UID, but if the dashboard JSON does not include `DS_PROMETHEUS` as a template variable, the panels show "datasource not found" after import.
+
+**Fix already applied:** `monitoring/dashboards/jvm-micrometer.json` has `DS_PROMETHEUS` pre-added as a datasource variable defaulting to `prometheus`. Delete the dashboard in Grafana and re-import the file if you hit this.
+
+**Frontend has no JVM metrics** — the frontend is nginx; it does not appear in the JVM dashboard. A separate nginx-prometheus-exporter would be needed to monitor it.
+
+---
+
+Also pass `-Dsonar.branch.name` explicitly in CI so SonarCloud always knows which branch the analysis belongs to:
+
+```yaml
+# backend (mvn)
+-Dsonar.branch.name=${{ github.ref_name }}
+
+# frontend (sonarqube-scan-action args)
+-Dsonar.branch.name=${{ github.ref_name }}
+```
+
+`github.ref_name` resolves to `main` or `dev` depending on the triggering branch, so both branches are tracked correctly under the same project.
