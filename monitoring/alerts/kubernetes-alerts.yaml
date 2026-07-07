@@ -4,7 +4,8 @@ kind: PrometheusRule
 metadata:
   name: kubernetes-alerts
   namespace: monitoring
-
+  labels:
+    release: depi-monitoring
 spec:
   groups:
     - name: kubernetes.rules
