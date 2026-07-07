@@ -116,3 +116,30 @@ jobs:
         if: always()
         with:
           sarif_file: trivy-backend.sarif
+
+  push-image:
+    name: Push to GHCR
+    runs-on: ubuntu-latest
+    needs: image-scan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/gitops-terraform-kubernates/backend:latest
+            ghcr.io/${{ github.repository_owner }}/gitops-terraform-kubernates/backend:${{ github.sha }}

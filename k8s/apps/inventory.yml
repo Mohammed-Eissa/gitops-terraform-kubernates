@@ -1,16 +1,16 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: inventory-app
-  namespace: {{ argocd_namespace }}
+  name: inventory
+  namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: {{ argocd_repo_url }}
-    targetRevision: {{ argocd_repo_branch }}
-    path: {{ argocd_app_path }}/apps
+    repoURL: https://github.com/ToYoNiX/gitops-terraform-kubernates.git
+    targetRevision: main
+    path: k8s/inventory
   destination:
     server: https://kubernetes.default.svc
     namespace: inventory
