@@ -28,6 +28,7 @@ The application is a realistic CRUD web app for managing warehouse/office invent
 ├── docker-compose.yml        # Local dev: Postgres + backend + frontend + Prometheus + Grafana
 ├── MEMORY.md                 # Project context for humans and agents
 ├── NOTES.md                  # Lessons learned, technical decisions, gotchas, ops one-liners
+├── SETUP.md                  # Numbered end-to-end setup guide (local + cluster + CI)
 └── README.md                 # Project overview, DEPI metadata, team
 ```
 
