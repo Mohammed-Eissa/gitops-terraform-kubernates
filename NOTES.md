@@ -151,6 +151,59 @@ Your DuckDNS token is shown at the top of the page after logging in at [duckdns.
 
 ---
 
+## TLS Certificates Stuck Pending — ISP Drops DNS TXT Queries
+
+**Symptom:** all ACME challenges sit in `pending` for hours with:
+
+```text
+Waiting for DNS-01 challenge propagation: dial tcp <ip>:53: i/o timeout
+```
+
+and later (after pointing cert-manager at cluster DNS):
+
+```text
+Waiting for DNS-01 challenge propagation: NS 10.43.0.10:53 returned SERVFAIL for _acme-challenge...
+```
+
+**Root cause:** the ISP transparently filters DNS by **query type** — outbound TXT queries on port 53 are silently dropped to *any* resolver (8.8.8.8, 1.1.1.1, 9.9.9.9, and the DuckDNS authoritative servers), while A queries to the very same servers work fine. The DuckDNS webhook publishes the `_acme-challenge` TXT records correctly (verifiable via DNS-over-HTTPS, which tunnels over 443), but cert-manager's pre-flight **propagation self-check** queries the authoritative nameservers over plain port 53, times out forever, and never asks Let's Encrypt to validate.
+
+Diagnose with:
+
+```bash
+# A query works, even direct to the DuckDNS authoritative NS
+dig +short A prod-devops-depi.duckdns.org @3.97.58.28
+
+# TXT query times out — to ANY resolver
+dig +short TXT google.com @8.8.8.8
+
+# But the challenge record IS published (DoH bypasses the filter)
+curl -s -H 'accept: application/dns-json' \
+  'https://cloudflare-dns.com/dns-query?name=_acme-challenge.prod-devops-depi.duckdns.org&type=TXT'
+```
+
+**Fix:** route the self-check through a DNS path the ISP can't mangle. DNS-over-TLS (port 853) is not filtered, and CoreDNS can forward over DoT natively:
+
+1. `k8s/cert-manager/coredns-custom.yml` adds a `coredns-custom` ConfigMap (k3s CoreDNS imports `/etc/coredns/custom/*.server`) forwarding `duckdns.org` to `tls://1.1.1.1`.
+2. `k8s/apps/cert-manager.yml` adds Helm `extraArgs` so cert-manager's self-check uses cluster DNS (`10.43.0.10`, the kube-dns ClusterIP) instead of dialing the authoritative servers directly:
+
+   ```yaml
+   extraArgs:
+     - --dns01-recursive-nameservers-only
+     - --dns01-recursive-nameservers=10.43.0.10:53
+   ```
+
+Flow after the fix: self-check → CoreDNS → DoT to 1.1.1.1 → sees the TXT record → cert-manager tells Let's Encrypt to validate → LE queries DuckDNS from its own network (unaffected by the local ISP) → certificate issues.
+
+After syncing, delete the stuck challenges so cert-manager recreates them immediately instead of waiting for the retry backoff:
+
+```bash
+sudo k3s kubectl delete challenge -n cert-manager --all
+```
+
+Note: the `cert-manager.io/cluster-issuer` annotation on the prod/dev ingresses means ingress-shim creates its own per-namespace certificates (`devops-depi-tls` in `prod`, `dev`, and `monitoring`), so the ingresses don't depend on the wildcard certificate's secret in the `cert-manager` namespace.
+
+---
+
 ## GitHub Actions / GHCR Gotchas
 
 **GHCR image tags must be fully lowercase** — `docker/build-push-action` will fail with `repository name must be lowercase` if `github.repository_owner` contains uppercase letters (e.g. `ToYoNiX`). GitHub Actions expressions do not support a `| lower` filter, so lowercase it in a shell step instead:
