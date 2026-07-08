@@ -165,7 +165,7 @@ main branch push
 │   │   ├── prod/         # namespace: prod, image: :prod, TLS ingress
 │   │   └── dev/          # namespace: dev, image: :dev, single instance
 │   ├── cert-manager/     # ClusterIssuer + wildcard Certificate
-│   └── monitoring-extras/# ServiceMonitors for prod + dev
+│   └── monitoring-extras/# ServiceMonitors (prod + dev) + Grafana dashboard ConfigMap
 ├── monitoring/           # Docker Compose monitoring stack (local dev)
 │   ├── docker/
 │   ├── helm/
@@ -238,7 +238,7 @@ Once the root app is registered, ArgoCD deploys everything automatically:
 - NGINX ingress controller
 - cert-manager + DuckDNS webhook + wildcard TLS certificate
 - `prod` namespace (from `main` branch)
-- `dev` namespace (from `dev` branch, once it exists)
+- `dev` namespace (from `dev` branch)
 - kube-prometheus-stack in `monitoring` namespace
 
 Access ArgoCD UI at `http://10.17.3.10:30080` — get the initial password with:
