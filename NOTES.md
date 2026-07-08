@@ -275,6 +275,8 @@ Two related non-issues worth knowing:
     tags: ghcr.io/${{ env.OWNER }}/your-repo/image:latest
 ```
 
+**SonarCloud can break a green pipeline without any change on your side** — SonarCloud dropped Java 17 scanner support server-side, and the backend analysis suddenly started failing with *"The version of Java (17) used to run this analysis is deprecated... Please upgrade to Java 21 or later"*. The scanner's Java requirement is independent of the app's Java version: the fix is a second `actions/setup-java` step that swaps `JAVA_HOME` to 21 **only for the `mvn sonar:sonar` step** — build and tests still run on Java 17 to match production, and the scanner just analyzes the already-compiled classes. The frontend scan was unaffected because `sonarqube-scan-action` bundles its own Java runtime.
+
 **Gitleaks scans git history, not just the latest commit** — if a secret is accidentally committed and then removed in a follow-up commit, Gitleaks will keep flagging the original commit fingerprint on every subsequent push. Adding a `.gitleaks.toml` allowlist is the wrong fix because the secret is still in history. The correct fix is to rewrite history:
 
 ```bash
