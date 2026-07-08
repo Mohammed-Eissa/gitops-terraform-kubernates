@@ -231,6 +231,8 @@ metadata:
     app: inventory-backend
 ```
 
+**Related nuisance — "unsaved changes" prompt on a provisioned dashboard:** if the provisioned JSON uses an old schema (the original #4701 export was `schemaVersion: 14`), Grafana migrates it in the browser on every load, which marks the dashboard dirty — leaving it triggers a save prompt that then fails with *"cannot be saved because it has been provisioned"*. Fix: open the dashboard, use **Save → Save JSON to file** to get the schema-current JSON (`schemaVersion: 39` on Grafana 10.4.1), and put that into the ConfigMap so no migration happens on load.
+
 Two related non-issues worth knowing:
 
 - The ServiceMonitors carry `release: kube-prometheus-stack`, but the Helm release is actually named `monitoring`. This mismatch doesn't matter because the chart values set `serviceMonitorSelectorNilUsesHelmValues: false`, which makes Prometheus pick up **all** ServiceMonitors regardless of labels.
