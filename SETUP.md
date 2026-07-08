@@ -259,12 +259,63 @@ If ingress/DNS is unavailable, the port-forward one-liners are in [NOTES.md](NOT
 
 ## 9. CI/CD Setup (GitHub Side)
 
-Needed once per fork/repo for the pipelines to go green:
+Everything in this section is needed **once per fork/repo** before the pipelines go green. None of it is hard, but each item is a time sink if you discover it by trial and error — budget ~30 minutes doing it deliberately.
 
-1. **Actions secrets** — `SONAR_TOKEN`, `SONAR_HOST_URL`, `SONAR_ORGANIZATION`, optionally `NVD_API_KEY` and `GITLEAKS_LICENSE`. Step-by-step acquisition instructions are in [MEMORY.md](MEMORY.md) under *GitHub Actions secrets*.
-2. **SonarCloud** — import the repo and **disable Automatic Analysis** (Administration → Analysis Method), or the CI scan fails. The `sonar.projectKey` in `backend/pom.xml` / `frontend/sonar-project.properties` must match SonarCloud's auto-generated `{org}_{repo}` key.
-3. **GHCR** — no secret needed (workflows use `GITHUB_TOKEN`), but note the quirk: **image names must be lowercase**. The workflows already lowercase `github.repository_owner` in a shell step; keep that if you touch them.
-4. **If you forked**: update `repoURL` in every `k8s/apps/*.yml`, `ansible/inventory/group_vars/all.yml` (`argocd_repo_url`), and the image names in `k8s/base` + overlays to your GHCR path.
+### 9.1 SonarCloud (SAST)
+
+1. Go to <https://sonarcloud.io> and **sign in with GitHub**
+2. Import the repo: **"+" → Analyze new project** → select the repo (create a free organization if prompted — its key appears in the URL: `sonarcloud.io/organizations/<key>`)
+3. **Disable Automatic Analysis** — *Administration → Analysis Method → toggle off*. This step is mandatory: SonarCloud refuses CI-based scans while Automatic Analysis is on, and the workflow fails with a confusing error
+4. Generate the token: **My Account → Security → Generate Token**, type **Global Analysis Token**
+5. Check the project key: SonarCloud auto-generates `{org}_{repo}` (e.g. `ToYoNiX_gitops-terraform-kubernates`). The `sonar.projectKey` in `backend/pom.xml` and `frontend/sonar-project.properties` must match it **exactly** — on a fork, update both files
+
+### 9.2 NVD API key (OWASP Dependency-Check)
+
+Optional but strongly recommended: **without it the Dependency-Check step takes ~20 minutes** (NVD rate-limits anonymous downloads); with it, ~2 minutes.
+
+1. Go to <https://nvd.nist.gov/developers/request-an-api-key>
+2. Fill in email, organization name, and organization type
+3. You receive an email with a UUID and a verification link
+4. Click the link, enter your email and the UUID — the API key is shown once, copy it
+
+### 9.3 Add the GitHub Actions secrets
+
+**Repo → Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Required | Value |
+| --- | --- | --- |
+| `SONAR_TOKEN` | Yes | Token from step 9.1.4 |
+| `SONAR_HOST_URL` | Yes | Always `https://sonarcloud.io` |
+| `SONAR_ORGANIZATION` | Yes | Org key from step 9.1.2 |
+| `NVD_API_KEY` | Recommended | Key from step 9.2 |
+| `GITLEAKS_LICENSE` | No | Only needed for **private** repos — public repos scan without it |
+
+### 9.4 GHCR (container registry)
+
+No secret needed — the workflows authenticate with the built-in `GITHUB_TOKEN`. Two things to know:
+
+- **Image names must be fully lowercase.** `docker/build-push-action` fails with `repository name must be lowercase` if `github.repository_owner` has uppercase letters (e.g. `ToYoNiX`), and Actions expressions have no `| lower` filter. The workflows already lowercase the owner in a shell step — keep that pattern if you edit them.
+- First push creates the packages as **private**; if image pulls fail on the cluster with authentication errors, make the packages public: *repo → Packages → package → Package settings → Change visibility*.
+
+### 9.5 Gitleaks behaviour worth knowing
+
+Gitleaks scans **git history**, not just the latest commit. If a secret lands in a commit and is removed in a follow-up commit, every future push keeps failing on the original commit. An allowlist is the wrong fix (the secret is still in history) — rewrite history instead: `git reset --soft <commit-before-the-bad-one>`, re-commit clean, `git push --force-with-lease`. Full walkthrough in [NOTES.md](NOTES.md).
+
+### 9.6 Workflow triggers recap
+
+| Workflow | Trigger | Pushes images? |
+| --- | --- | --- |
+| `backend-ci.yml` / `frontend-ci.yml` | Every push | Only on `main` (`:prod`) and `dev` (`:dev`) |
+| `dast.yml` | Manual (`workflow_dispatch`) or weekly (Monday 2am) | No — spins up compose, runs Selenium + OWASP ZAP |
+
+### 9.7 If you forked this repo
+
+Update every place that hardcodes the upstream repo/registry, or ArgoCD will happily deploy someone else's images:
+
+- `repoURL` in **every** `k8s/apps/*.yml` (8 files)
+- `argocd_repo_url` in `ansible/inventory/group_vars/all.yml`
+- Image names (`ghcr.io/toyonix/...`) in `k8s/base/backend/deployment.yml`, `k8s/base/frontend/deployment.yml`, and both `k8s/overlays/*/kustomization.yml`
+- `sonar.projectKey` in `backend/pom.xml` and `frontend/sonar-project.properties` (see 9.1.5)
 
 ---
 
