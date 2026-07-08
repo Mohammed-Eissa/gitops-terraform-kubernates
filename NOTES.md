@@ -204,6 +204,42 @@ Note: the `cert-manager.io/cluster-issuer` annotation on the prod/dev ingresses 
 
 ---
 
+## Grafana JVM Dashboard Empty — ServiceMonitor Matches Service *Labels*, Not the Pod Selector
+
+**Symptom:** the JVM (Micrometer) dashboard loads in Grafana but every panel shows `N/A` / "No data", and the `application` dropdown is empty. The same dashboard works fine in the docker-compose stack.
+
+**Root cause:** a ServiceMonitor's `spec.selector.matchLabels` matches against the **labels on the Service object** — not the Service's `spec.selector` (which targets pods). The backend Service in `k8s/base/backend/service.yml` had `app: inventory-backend` only as its pod selector and **no labels at all** in its own metadata, so both ServiceMonitors (`inventory-backend-prod`, `inventory-backend-dev`) matched zero Services and Prometheus discovered zero targets. No metrics → the dashboard's `application` template variable (`label_values(application)`) resolves to nothing → every panel is empty.
+
+It worked in docker-compose because `monitoring/docker/prometheus.yml` scrapes `backend:8080` with a hardcoded static config — no label matching involved.
+
+Diagnose with:
+
+```bash
+# Service has no app label (only the ArgoCD-injected one)
+sudo k3s kubectl get svc backend -n prod --show-labels
+
+# Prometheus has no inventory targets
+curl -s http://<prometheus-ip>:9090/api/v1/targets | grep -c inventory   # → 0
+```
+
+**Fix:** add the label to the Service metadata in the base (one change covers both overlays):
+
+```yaml
+metadata:
+  name: backend
+  labels:
+    app: inventory-backend
+```
+
+**Related nuisance — "unsaved changes" prompt on a provisioned dashboard:** if the provisioned JSON uses an old schema (the original #4701 export was `schemaVersion: 14`), Grafana migrates it in the browser on every load, which marks the dashboard dirty — leaving it triggers a save prompt that then fails with *"cannot be saved because it has been provisioned"*. Fix: open the dashboard, use **Save → Save JSON to file** to get the schema-current JSON (`schemaVersion: 39` on Grafana 10.4.1), and put that into the ConfigMap so no migration happens on load.
+
+Two related non-issues worth knowing:
+
+- The ServiceMonitors carry `release: kube-prometheus-stack`, but the Helm release is actually named `monitoring`. This mismatch doesn't matter because the chart values set `serviceMonitorSelectorNilUsesHelmValues: false`, which makes Prometheus pick up **all** ServiceMonitors regardless of labels.
+- The "requires Angular (deprecated)" badge on the dashboard is cosmetic on the chart's Grafana 10.4.1 — Angular panels still render there. Dashboard #4701 uses the legacy `graph`/`singlestat` panel types, which stop rendering in Grafana 11+. Longer term, replace it with a modern `timeseries`-based JVM dashboard, and pin the docker-compose `grafana/grafana:latest` image (a fresh pull would get Grafana 12, where the dashboard breaks locally too).
+
+---
+
 ## GitHub Actions / GHCR Gotchas
 
 **GHCR image tags must be fully lowercase** — `docker/build-push-action` will fail with `repository name must be lowercase` if `github.repository_owner` contains uppercase letters (e.g. `ToYoNiX`). GitHub Actions expressions do not support a `| lower` filter, so lowercase it in a shell step instead:
