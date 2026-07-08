@@ -56,6 +56,15 @@ jobs:
           name: jacoco-report
           path: backend/target/site/jacoco/
 
+      # SonarCloud dropped Java 17 scanner support — the analysis must run on
+      # Java 21+. The app still builds and tests on 17 above; this only swaps
+      # JAVA_HOME for the scanner, which analyzes without recompiling.
+      - name: Set up Java 21 for SonarQube scanner
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
       - name: SonarQube SAST
         if: ${{ env.SONAR_TOKEN != '' }}
         run: |
