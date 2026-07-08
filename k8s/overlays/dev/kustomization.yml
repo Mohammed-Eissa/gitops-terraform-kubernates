@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - ../../base
+  - namespace.yml
+  - ingress.yml
+images:
+  - name: ghcr.io/toyonix/gitops-terraform-kubernates/backend
+    newTag: dev
+  - name: ghcr.io/toyonix/gitops-terraform-kubernates/frontend
+    newTag: dev
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 1
+    target:
+      kind: HorizontalPodAutoscaler

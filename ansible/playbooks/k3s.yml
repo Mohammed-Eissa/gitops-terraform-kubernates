@@ -1,0 +1,21 @@
+---
+# Provisions the k3s cluster only (no ArgoCD)
+# Useful for testing the cluster before deploying apps
+
+- name: Prepare all nodes
+  hosts: k3s
+  gather_facts: true
+  roles:
+    - common
+
+- name: Install k3s server (master)
+  hosts: master
+  gather_facts: true
+  roles:
+    - k3s-server
+
+- name: Join k3s agents
+  hosts: agents
+  gather_facts: true
+  roles:
+    - k3s-agent

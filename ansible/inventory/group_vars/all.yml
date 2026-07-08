@@ -1,0 +1,22 @@
+---
+# k3s version — pin to a specific release for reproducibility
+k3s_version: "v1.29.4+k3s1"
+
+# Network
+k3s_master_ip: "10.17.3.10"
+k3s_cluster_cidr: "10.42.0.0/16"   # pod CIDR (k3s default)
+k3s_service_cidr: "10.43.0.0/16"   # service CIDR (k3s default)
+
+# Flannel backend — vxlan is default and works on NAT networks
+k3s_flannel_backend: "vxlan"
+
+# kubeconfig is written here on master; Ansible fetches it locally
+k3s_kubeconfig_remote: "/etc/rancher/k3s/k3s.yaml"
+k3s_kubeconfig_local: "~/.kube/config"
+
+# ArgoCD
+argocd_namespace: "argocd"
+argocd_version: "5.51.6"   # Helm chart version (ArgoCD 2.9.x)
+argocd_repo_url: "https://github.com/ToYoNiX/gitops-terraform-kubernates.git"
+argocd_repo_branch: "main"
+argocd_app_path: "k8s"
